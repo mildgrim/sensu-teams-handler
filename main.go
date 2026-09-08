@@ -5,6 +5,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	goteamsnotify "github.com/atc0005/go-teams-notify/v2"
 	corev2 "github.com/sensu/sensu-go/api/core/v2"
@@ -20,6 +21,7 @@ type HandlerConfig struct {
 	teamsSender              string
 	teamsSensuURL            string
 	teamsDescriptionTemplate string
+	teamsMaxOutputLength     uint64
 }
 
 const (
@@ -28,11 +30,14 @@ const (
 	sender              = "sender"
 	sensuURL            = "sensu-url"
 	descriptionTemplate = "description-template"
+	maxOutputLength     = "max-output-length"
 
-	defaultIsTest   = "false"
-	defaultSensuURL = "http://localhost:3000"
-	defaultSender   = "Sensu"
-	defaultTemplate = "{{ .Check.Output }}"
+	defaultIsTest          = "false"
+	defaultSensuURL        = "http://localhost:3000"
+	defaultSender          = "Sensu"
+	defaultTemplate        = "{{ .Check.Output }}"
+	defaultMaxOutputLength = uint64(20000)
+	truncationMark         = "\n\n… truncated"
 )
 
 var (
@@ -89,6 +94,15 @@ var (
 			Default:   defaultTemplate,
 			Usage:     "The Teams notification output template, in Golang text/template format",
 			Value:     &config.teamsDescriptionTemplate,
+		},
+		{
+			Path:      maxOutputLength,
+			Env:       "TEAMS_MAX_OUTPUT_LENGTH",
+			Argument:  maxOutputLength,
+			Shorthand: "o",
+			Default:   defaultMaxOutputLength,
+			Usage:     "Max length of the message body (template output) in bytes; 0 disables truncation",
+			Value:     &config.teamsMaxOutputLength,
 		},
 	}
 )
@@ -161,6 +175,32 @@ func messageStatus(event *corev2.Event) string {
 	}
 }
 
+// truncateOutput shortens s so its UTF-8 byte length is <= maxBytes, appending
+// truncationMark when truncated. maxBytes 0 means no truncation.
+func truncateOutput(s string, maxBytes uint64) string {
+	if maxBytes == 0 {
+		return s
+	}
+	max := int(maxBytes)
+	if len(s) <= max {
+		return s
+	}
+	markLen := len(truncationMark)
+	if max <= markLen {
+		// Degenerate config: keep as much of the mark as fits.
+		if max <= 0 {
+			return ""
+		}
+		return truncationMark[:max]
+	}
+	keep := max - markLen
+	// Avoid splitting a multi-byte rune at the cut point.
+	for keep > 0 && !utf8.RuneStart(s[keep]) {
+		keep--
+	}
+	return s[:keep] + truncationMark
+}
+
 func messageSection(event *corev2.Event) *goteamsnotify.MessageCardSection {
 
 	description, err := templates.EvalTemplate("description", config.teamsDescriptionTemplate, event)
@@ -184,7 +224,7 @@ func messageSection(event *corev2.Event) *goteamsnotify.MessageCardSection {
 	section.AddFactFromKeyValue("Entity:", event.Entity.Name)
 
 	if config.teamsIsTest == "false" {
-		section.Text = description
+		section.Text = truncateOutput(description, config.teamsMaxOutputLength)
 	} else {
 		section.Text = "Test"
 	}
