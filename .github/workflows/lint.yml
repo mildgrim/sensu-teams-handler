@@ -3,14 +3,20 @@ name: Go Lint
 on: [push, pull_request]
 
 jobs:
-  test:
+  lint:
     name: Lint
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest]
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
-    - name: Run golangci-lint
-      uses: actions-contrib/golangci-lint@v1
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.22.x'
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62.2
