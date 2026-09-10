@@ -39,8 +39,8 @@ func TestTruncateOutputUTF8Safe(t *testing.T) {
 	if len(out) > 51 {
 		t.Fatalf("len=%d", len(out))
 	}
-	if !strings.HasSuffix(out, truncationMark) && len(in) > 51 {
-		// if truncated, mark present; if somehow not needed, ok
+	if len(in) > 51 && !strings.HasSuffix(out, truncationMark) {
+		t.Fatalf("missing truncation mark: %q", out[len(out)-20:])
 	}
 	// must be valid UTF-8 (no panic / incomplete rune at end before mark)
 	body := strings.TrimSuffix(out, truncationMark)

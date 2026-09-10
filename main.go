@@ -219,9 +219,15 @@ func messageSection(event *corev2.Event) *goteamsnotify.MessageCardSection {
 		section.ActivitySubtitle = "2021-11-17 02:00"
 	}
 
-	section.AddFactFromKeyValue("Sender:", config.teamsSender)
-	section.AddFactFromKeyValue("Status:", messageStatus(event))
-	section.AddFactFromKeyValue("Entity:", event.Entity.Name)
+	if err := section.AddFactFromKeyValue("Sender:", config.teamsSender); err != nil {
+		fmt.Printf("%s: error adding sender fact: %s\n", config.PluginConfig.Name, err)
+	}
+	if err := section.AddFactFromKeyValue("Status:", messageStatus(event)); err != nil {
+		fmt.Printf("%s: error adding status fact: %s\n", config.PluginConfig.Name, err)
+	}
+	if err := section.AddFactFromKeyValue("Entity:", event.Entity.Name); err != nil {
+		fmt.Printf("%s: error adding entity fact: %s\n", config.PluginConfig.Name, err)
+	}
 
 	if config.teamsIsTest == "false" {
 		section.Text = truncateOutput(description, config.teamsMaxOutputLength)
